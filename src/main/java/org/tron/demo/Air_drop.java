@@ -1,7 +1,5 @@
 package org.tron.demo;
 
-import com.google.protobuf.Any;
-import com.google.protobuf.ByteString;
 import com.typesafe.config.Config;
 import io.grpc.StatusRuntimeException;
 import java.io.BufferedReader;
@@ -26,12 +24,10 @@ import org.tron.common.utils.TransactionUtils;
 import org.tron.common.utils.Utils;
 import org.tron.core.config.Configuration;
 import org.tron.protos.Contract;
-import org.tron.protos.Contract.CreateSmartContract;
 import org.tron.protos.Contract.TransferAssetContract;
 import org.tron.protos.Protocol.Account;
 import org.tron.protos.Protocol.Transaction;
 import org.tron.protos.Protocol.Transaction.Contract.ContractType;
-import org.tron.protos.Protocol.Transaction.raw;
 import org.tron.walletserver.GrpcClient;
 import org.tron.walletserver.WalletApi;
 
@@ -66,25 +62,13 @@ public class Air_drop {
   private static int SEND_LINE_NUMS = 0;
   private static String timestamp = null;
   private static GrpcClient rpcCli = null;
-  private static byte[] blockhash = ByteArray
-      .fromHexString("000000000064b5400428d8fbc2b5a6f39fd71bb4b2def0e03afe914cb424f212");
-
-  public static Transaction setReference(Transaction transaction, long blockNum, byte[] blockHash) {
-    byte[] refBlockNum = ByteArray.fromLong(blockNum);
-    Transaction.raw rawData = transaction.getRawData().toBuilder()
-        .setRefBlockHash(ByteString.copyFrom(ByteArray.subArray(blockHash, 8, 16)))
-        .setRefBlockBytes(ByteString.copyFrom(ByteArray.subArray(refBlockNum, 6, 8)))
-        .build();
-    Transaction.Builder builder = transaction.toBuilder();
-    builder.setRawData(rawData);
-    return builder.build();
-  }
 
   private static Transaction createTransaction(Contract.TransferAssetContract contract) {
-    Transaction.raw.Builder rawBuilder = Transaction.raw.newBuilder().addContract(
-        Transaction.Contract.newBuilder().setType(ContractType.TransferAssetContract).setParameter(
-            Any.pack(contract)).build());
-
+    TransactionExtention extention = rpcCli.createTransferAssetTransaction2(contract);
+    if (extention.getResult().getCode() != response_code.SUCCESS) {
+      return null;
+    }
+    Transaction transaction = extention.getTransaction();
     long time_stamp;
     if (timestamp != null) {
       Date date = Utils.strToDateLong(timestamp);
@@ -92,12 +76,12 @@ public class Air_drop {
     } else {
       time_stamp = System.currentTimeMillis();
     }
-    rawBuilder
+    Transaction.raw rawData = transaction.getRawData()
+        .toBuilder()
         .setTimestamp(time_stamp)
         .setExpiration(time_stamp + 24 * 60 * 60 * 1000L)
         .build(); //24h
-    Transaction transaction = Transaction.newBuilder().setRawData(rawBuilder).build();
-    transaction = setReference(transaction, 6600000L, blockhash);
+    transaction = transaction.toBuilder().setRawData(rawData).build();
     return transaction;
   }
 
